@@ -7,9 +7,8 @@
   (println "Hello, World!"))
 
 (defn  new-game
-  [starting-player]
-  {:player starting-player
-   :pieces {0 {:color nil :edges []}}})
+  []
+  {:pieces {0 {:color nil :edges []}}})
 
 (defn max-id
   [game]
@@ -87,17 +86,23 @@
     :red (dec score)
     :blue (inc score)))
 
+(defn dbg
+  [value]
+  (println value)
+  value)
+
 (defn minimax
-  ([game] (minimax game nil nil))
-  ([game score winner]
-   (println score winner game)
-   (let [player (:player game)
-         moves (get-moves game player)]
+  ([games player] (minimax games player nil nil))
+  ([games player score winner]
+   (println games)
+   (let [moves (map-indexed (fn [idx game] [idx (get-moves game player)]) games)
+         moves (apply concat (map (fn [[idx moves]] (map #(vector idx %) moves)) moves))]
      (cond
        ;we have no moves, and we haven't already won
        ;continue and let the other play see how many moves they can make
        (or (= winner (other-player player)) (and (nil? winner) (empty? moves)))
-       (minimax (update game :player other-player)
+       (minimax games
+                (other-player player)
                 (or score 0)
                 (or winner (other-player player)))
 
@@ -108,26 +113,32 @@
        ;we still have moves to make, so make all moves and return best value
        true
        (pick-result player
-                    (map #(->
-                           game
-                           (remove-piece %)
-                           (update :player other-player)
-                           (minimax (and winner (inc-score winner score)) winner))
+                    (map (fn [[idx move]]
+                           (->
+                            games
+                            (update idx #(remove-piece % move))
+                            (minimax (other-player player)
+                                     (and winner (inc-score winner score))
+                                     winner)))
                          moves))))))
 
-(defn test-game
-  [game]
-  {:blue (minimax (assoc game :player :blue))
-   :red (minimax (assoc game :player :red))})
+(defn test-games
+  [games]
+  {:blue (minimax games :blue)
+   :red (minimax games :red)})
 
-(def my-game
+(def half-game
   (->
-   (new-game :blue)
+   (new-game)
    (add-piece :blue [0])
    (add-piece :red [1])))
 
 (defn single-game
   [color]
   (->
-   (new-game :blue)
+   (new-game)
    (add-piece color [0])))
+
+;demonstrates that the half game is a 1/2 turn advantage to blue
+;as 1/2 + 1/2 - 1 = 0
+(test-games [(single-game :red) half-game half-game])
